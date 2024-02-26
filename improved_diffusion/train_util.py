@@ -9,7 +9,7 @@ import torch.distributed as dist
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
 from torch.optim import AdamW
 
-from torch.cuda.amp import autocast, GradScaler
+# from torch.cuda.amp import autocast, GradScaler
 
 
 from . import dist_util, logger
@@ -189,82 +189,82 @@ class TrainLoop:
             self.optimize_normal()
         self.log_step()
 
-    # def forward_backward(self, batch, cond):
-    #     zero_grad(self.model_params)
-    #     for i in range(0, batch.shape[0], self.microbatch):
-    #         micro = batch[i : i + self.microbatch].to(dist_util.dev())
-    #         micro_cond = {
-    #             k: v[i : i + self.microbatch].to(dist_util.dev())
-    #             for k, v in cond.items()
-    #         }
-    #         last_batch = (i + self.microbatch) >= batch.shape[0]
-    #         t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
+    def forward_backward(self, batch, cond):
+        zero_grad(self.model_params)
+        for i in range(0, batch.shape[0], self.microbatch):
+            micro = batch[i : i + self.microbatch].to(dist_util.dev())
+            micro_cond = {
+                k: v[i : i + self.microbatch].to(dist_util.dev())
+                for k, v in cond.items()
+            }
+            last_batch = (i + self.microbatch) >= batch.shape[0]
+            t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
 
-    #         compute_losses = functools.partial(
-    #             self.diffusion.training_losses,
-    #             self.ddp_model,
-    #             micro,
-    #             t,
-    #             model_kwargs=micro_cond,
-    #         )
+            compute_losses = functools.partial(
+                self.diffusion.training_losses,
+                self.ddp_model,
+                micro,
+                t,
+                model_kwargs=micro_cond,
+            )
 
-    #         if last_batch or not self.use_ddp:
-    #             losses = compute_losses()
-    #         else:
-    #             with self.ddp_model.no_sync():
-    #                 losses = compute_losses()
+            if last_batch or not self.use_ddp:
+                losses = compute_losses()
+            else:
+                with self.ddp_model.no_sync():
+                    losses = compute_losses()
 
-    #         if isinstance(self.schedule_sampler, LossAwareSampler):
-    #             self.schedule_sampler.update_with_local_losses(
-    #                 t, losses["loss"].detach()
-    #             )
+            if isinstance(self.schedule_sampler, LossAwareSampler):
+                self.schedule_sampler.update_with_local_losses(
+                    t, losses["loss"].detach()
+                )
 
-    #         loss = (losses["loss"] * weights).mean()
-    #         log_loss_dict(
-    #             self.diffusion, t, {k: v * weights for k, v in losses.items()}
-    #         )
-    #         if self.use_fp16:
-    #             loss_scale = 2 ** self.lg_loss_scale
-    #             (loss * loss_scale).backward()
-    #         else:
-    #             loss.backward()
+            loss = (losses["loss"] * weights).mean()
+            log_loss_dict(
+                self.diffusion, t, {k: v * weights for k, v in losses.items()}
+            )
+            if self.use_fp16:
+                loss_scale = 2 ** self.lg_loss_scale
+                (loss * loss_scale).backward()
+            else:
+                loss.backward()
     
 
     ### modifying forward_backward process to save more memory
         
-    def forward_backward(self, batch, cond):
-        zero_grad(self.model_params)
-        self.opt.zero_grad()
-        for i in range(0, batch.shape[0], self.microbatch):
-            micro = batch[i : i + self.microbatch].to(dist_util.dev())
-            micro_cond = {k: v[i : i + self.microbatch].to(dist_util.dev()) for k, v in cond.items()}
-            last_batch = (i + self.microbatch) >= batch.shape[0]
-            t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
+    # def forward_backward(self, batch, cond):
+    #     zero_grad(self.model_params)
+    #     self.opt.zero_grad()
+    #     for i in range(0, batch.shape[0], self.microbatch):
+    #         micro = batch[i : i + self.microbatch].to(dist_util.dev())
+    #         micro_cond = {k: v[i : i + self.microbatch].to(dist_util.dev()) for k, v in cond.items()}
+    #         last_batch = (i + self.microbatch) >= batch.shape[0]
+    #         t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
 
-            with autocast():
-                compute_losses = functools.partial(
-                    self.diffusion.training_losses,
-                    self.ddp_model,
-                    micro,
-                    t,
-                    model_kwargs=micro_cond,
-                )
+    #         with autocast():
+    #             compute_losses = functools.partial(
+    #                 self.diffusion.training_losses,
+    #                 self.ddp_model,
+    #                 micro,
+    #                 t,
+    #                 model_kwargs=micro_cond,
+    #             )
 
-                if last_batch or not self.use_ddp:
-                    losses = compute_losses()
-                else:
-                    with self.ddp_model.no_sync():
-                        losses = compute_losses()
+    #             if last_batch or not self.use_ddp:
+    #                 losses = compute_losses()
+    #             else:
+    #                 with self.ddp_model.no_sync():
+    #                     losses = compute_losses()
 
-            loss = (losses["loss"] * weights).mean()
+    #         loss = (losses["loss"] * weights).mean()
 
-            self.scaler.scale(loss).backward()
+    #         self.scaler.scale(loss).backward()
 
-        if self.use_fp16:
-            self.scaler.step(self.opt)
-            self.scaler.update()
-        else:
-            loss.backward()
+    #     if self.use_fp16:
+    #         self.scaler.step(self.opt)
+    #         self.scaler.update()
+    #     else:
+    #         loss.backward()
         
 
     def optimize_fp16(self):
