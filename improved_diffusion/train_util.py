@@ -9,6 +9,9 @@ import torch.distributed as dist
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
 from torch.optim import AdamW
 
+from torch.cuda.amp import autocast, GradScaler
+
+
 from . import dist_util, logger
 from .fp16_util import (
     make_master_params,
