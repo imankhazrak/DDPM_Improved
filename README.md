@@ -41,6 +41,9 @@ Here are some changes we experiment with, and how to set them in the flags:
  * **Importance-sampled VLB:** add `--use_kl True` to `DIFFUSION_FLAGS` and add `--schedule_sampler loss-second-moment` to  `TRAIN_FLAGS`.
  * **Class-conditional:** add `--class_cond True` to `MODEL_FLAGS`.
 
+
+
+
 Once you have setup your hyper-parameters, you can run an experiment like so:
 
 ```
@@ -143,4 +146,61 @@ Unconditional CIFAR-10 with the `L_vlb` objective and cosine noise schedule [[ch
 MODEL_FLAGS="--image_size 32 --num_channels 128 --num_res_blocks 3 --learn_sigma True --dropout 0.3"
 DIFFUSION_FLAGS="--diffusion_steps 4000 --noise_schedule cosine --use_kl True"
 TRAIN_FLAGS="--lr 1e-4 --batch_size 128 --schedule_sampler loss-second-moment"
+```
+
+
+## My Train:
+
+```bash
+python scripts/image_train.py --data_dir datasets/tiny-imagenet-200/train --lr 1e-4 --batch_size 128 --diffusion_steps 100 --noise_schedule linear --image_size 64 --num_channels 128 --num_res_blocks 3
+```
+
+## Configuration on server to install mpi4py
+
+1. Download OpenMPI  
+
+```bash
+wget https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-4.0.5.tar.gz
+tar -xzvf openmpi-4.0.5.tar.gz
+```
+
+2. Configure the Build  
+
+```bash
+cd openmpi-4.0.5
+./configure --prefix=$HOME/local/openmpi
+```
+
+3. Compile and Install
+
+```bash
+make all
+make install
+```
+
+5. Update Your Environment Variables
+After installation, you need to update your environment variables to use your local OpenMPI installation. Add the following lines to your .bashrc or .bash_profile to update PATH and LD_LIBRARY_PATH:
+
+```bash
+conda install zlib
+conda install gcc_linux-64 gxx_linux-64
+```
+
+```bash
+export MPI_DIR=$HOME/local/openmpi
+export PATH="$MPI_DIR/bin:$PATH"
+export MPICC="$MPI_DIR/bin/mpicc"
+export LDFLAGS="-L/home/ikhazra/miniconda3/envs/ddpm_improved/lib $LDFLAGS"
+export CPPFLAGS="-I/home/ikhazra/miniconda3/envs/ddpm_improved/include $CPPFLAGS"
+export LD_LIBRARY_PATH=/home/ikhazra/miniconda3/envs/ddpm_improved/lib:$LD_LIBRARY_PATH"
+```
+
+After editing, reload your .bashrc or .bash_profile:
+
+```bash
+source ~/.bashrc  # or source ~/.bash_profile
+```
+
+```bash
+
 ```
