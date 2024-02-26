@@ -49,7 +49,7 @@ class TrainLoop:
         weight_decay=0.0,
         lr_anneal_steps=0,
     ):
-        self.scaler = GradScaler() ### Adding
+        #self.scaler = GradScaler() ### Adding
         self.model = model
         self.diffusion = diffusion
         self.data = data
